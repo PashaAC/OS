@@ -1,4 +1,6 @@
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include "helpers.h"
 
 ssize_t read_(int fd, void * buf, size_t count)
@@ -60,3 +62,29 @@ ssize_t read_until(int fd, void * buf, size_t count, char delimiter)
     }
     return offset;
 }
+
+int spawn(const char * file, char * const argv []) 
+{
+    pid_t parent = fork();
+    if (parent == -1) 
+    {
+        return parent;
+    }
+    
+    if (parent)
+    {
+        int status;
+        pid_t pid = wait(&status);
+        if (pid == -1)
+        {
+            return pid;
+        }
+        return WEXITSTATUS(status);
+    }
+    else
+    {
+        return execvp(file, argv);
+    }
+}
+
+
