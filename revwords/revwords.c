@@ -1,7 +1,6 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include "helpers.h"
-#include <memory.h>
 
 #define BUFFER_SIZE 50
 
