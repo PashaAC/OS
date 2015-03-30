@@ -1,4 +1,3 @@
-#include <unistd.h>
 #include <string.h>
 #include "bufio.h"
 
@@ -90,10 +89,11 @@ ssize_t buf_flush(fd_t fd, struct buf_t * buf, size_t required)
         abort();
     }
 #endif
-   size_t max_write_size = required < buf->size ? required : buf->size;
-   size_t offset = 0;
-   while (offset < max_write_size)
-   {
+    size_t prev_size = buf->size;
+    size_t max_write_size = required < buf->size ? required : buf->size;
+    size_t offset = 0;
+    while (offset < max_write_size)
+    {
         ssize_t was_written = write(fd, buf->buffer + offset, buf->size -  offset);
         if (was_written < 0)
         {
@@ -102,8 +102,8 @@ ssize_t buf_flush(fd_t fd, struct buf_t * buf, size_t required)
             return -1;
         }
         offset += was_written;
-   }
-   memmove(buf->buffer, buf->buffer + offset, buf->size - offset);
-   buf->size = buf->size - offset;
-   return buf->size;
+    }
+    memmove(buf->buffer, buf->buffer + offset, buf->size - offset);
+    buf->size = buf->size - offset;
+    return prev_size - buf->size;
 }
