@@ -4,3 +4,4 @@ all:
 	$(MAKE) -C revwords/
 	$(MAKE) -C filter/
 	$(MAKE) -C bufcat/
+	$(MAKE) -C foreach/

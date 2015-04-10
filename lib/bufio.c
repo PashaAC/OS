@@ -107,3 +107,32 @@ ssize_t buf_flush(fd_t fd, struct buf_t * buf, size_t required)
     buf->size = buf->size - offset;
     return prev_size - buf->size;
 }
+
+ssize_t buf_getline(fd_t fd, struct buf_t * buf, char * dest)
+{
+#ifdef DEBUG 
+    if (buf == NULL) 
+    {
+        abort();
+    }
+#endif
+    size_t str_len = 0;
+    for(;;)
+    {
+        for (size_t i = 0; i != buf->size; ++i)
+        {
+            if (buf->buffer[i] == '\n')
+            {
+                memmove(buf->buffer, buf->buffer + i + 1, buf->size - i - 1);
+                buf->size -= i + 1;
+                return str_len;
+            }
+            dest[str_len++] = buf->buffer[i];
+        }
+        if (buf_fill(fd, buf + buf->size, 1) <= 0)
+        {
+            return -1;
+        }
+    }
+    return -1;
+}

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "helpers.h"
 
-#define BUFFER_SIZE 50
+#define BUFFER_SIZE 4096
 
 void reverse(char * buf, size_t from, size_t to)
 {
@@ -47,8 +47,8 @@ int main(int argc, char ** argv)
         }
         if (was_read == 0) 
         {
-            reverse(buf, 0, offset - 2);
-            write_(STDOUT_FILENO, buf, offset - 1);
+            reverse(buf, 0, offset - 1);
+            write_(STDOUT_FILENO, buf, offset);
             break;
         }
         ssize_t reversed_block = reverse_words(buf, was_read + offset, delimeter) + 1;
