@@ -1,66 +1,49 @@
-#include <unistd.h>
 #include <stdlib.h>
-#include "helpers.h"
+#include <string.h>
+#include <helpers.h>
 
 #define BUFFER_SIZE 4096
 
-void reverse(char * buf, size_t from, size_t to)
-{
-    for (size_t i = from; i != (from + to + 1) / 2; ++i)
-    {
-        char tmp = buf[i];
-        buf[i] = buf[to - i + from];
-        buf[to - i + from] = tmp;
-    }
+ssize_t delimiter_position(const void * buf, size_t size, char delimiter) {
+    for (size_t i = 0; i < size; ++i)
+        if (((char *) buf)[i] == delimiter)
+            return i;
+    return -1;
 }
 
-ssize_t reverse_words(char * buf, size_t count, char delimeter) 
-{
-    ssize_t last_delimeter_pos = -1;
-    for (size_t i = 0; i != count; ++i) 
-    {
-        if (buf[i] == delimeter) 
-        {
-            reverse(buf, last_delimeter_pos + 1, i - 1);
-            last_delimeter_pos = i;
-        }
-    }
-    return last_delimeter_pos;
+void reverse(void * buf, size_t s, size_t f) {  
+    for (size_t i = s; i < (s + f) / 2; ++i) {
+        char c = ((char *) buf)[i];
+        ((char *) buf)[i] = ((char *) buf)[f - i + s - 1];
+        ((char *) buf)[f - i + s - 1] = c;
+    }   
 }
 
-void move(char * from, char * to, size_t count) 
-{
-    while (count-- && (*to++ = *from++));
-}
-
-int main(int argc, char ** argv) 
-{
-    char buf[BUFFER_SIZE];
-    char delimeter = ' ';
-    int offset = 0;
-    for (;;) 
-    {
-        ssize_t was_read = read_until(STDIN_FILENO, buf + offset, BUFFER_SIZE - offset, delimeter);
-        if (was_read < 0) 
-        {
+int main(int argc, char * argv[]) {
+    char buffer[BUFFER_SIZE];
+    size_t offset = 0;
+    while (1) {
+        ssize_t read_block = read_until(STDIN_FILENO, buffer + offset, BUFFER_SIZE - offset, ' ');
+        if (read_block == -1) 
             exit(EXIT_FAILURE);
-        }
-        if (was_read == 0) 
-        {
-            reverse(buf, 0, offset - 1);
-            write_(STDOUT_FILENO, buf, offset);
+        if (read_block == 0)
             break;
+        offset += read_block;
+        while (1) {
+            ssize_t delimiter_pos = delimiter_position(buffer, offset, ' ');
+            if (delimiter_pos == -1)
+                break;
+            reverse(buffer, 0, delimiter_pos);
+            if (delimiter_pos > 0) {
+                write_(STDOUT_FILENO, buffer, delimiter_pos);
+                write_(STDOUT_FILENO, " ", 1);
+            }
+            memmove(buffer, buffer + delimiter_pos + 1, offset - delimiter_pos - 1);
+            offset -= delimiter_pos + 1;
         }
-        ssize_t reversed_block = reverse_words(buf, was_read + offset, delimeter) + 1;
-        if (reversed_block < 0) 
-        {
-            offset += was_read;
-            continue;
-        }
-        write_(STDOUT_FILENO, buf, reversed_block);
-        move(buf + reversed_block, buf, was_read + offset - reversed_block);
-        offset += was_read;
-        offset -= reversed_block;
     }
-    exit(EXIT_SUCCESS); 
+    reverse(buffer, 0, offset);
+    write_(STDOUT_FILENO, buffer, offset);
+    exit(EXIT_SUCCESS);
 }
+
