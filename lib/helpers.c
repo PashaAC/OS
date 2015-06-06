@@ -16,7 +16,7 @@ ssize_t read_(int fd, void * buf, size_t count) {
     size_t offset = 0;
     while (offset < count) {
         ssize_t read_block = read(fd, buf + offset, count - offset);
-        if (read_block < 0) 
+        if (read_block == -1) 
             return -1;
         if (read_block == 0) 
             break;
@@ -29,7 +29,7 @@ ssize_t write_(int fd, const void * buf, size_t count) {
     size_t offset = 0;
     while (offset < count) {
         ssize_t write_block = write(fd, buf + offset, count - offset);
-        if (write_block < 0) 
+        if (write_block == -1) 
             return -1;
         offset += write_block;
     }
