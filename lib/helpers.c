@@ -52,28 +52,21 @@ ssize_t read_until(int fd, void * buf, size_t count, char delimiter) {
     return offset;
 }
 
-int spawn(const char * file, char * const argv []) 
-{
-    pid_t parent = fork();
-    if (parent == -1) 
-    {
-        return parent;
-    }
+int spawn(const char * file, char * const argv[]) {
+    pid_t cpid = fork();
+    if (cpid == -1) // error 
+        return -1;
 
-    if (parent)
-    {
+    if (cpid) {     // parent
         int status;
-        pid_t pid = wait(&status);
-        if (pid == -1)
-        {
-            return pid;
-        }
-        return WEXITSTATUS(status);
+        while (wait(&status) !=  cpid);
+        if (WIFEXITED(status)) 
+            return WEXITSTATUS(status);
     }
-    else
-    {
+    else {          // child
         return execvp(file, argv);
     }
+    exit(EXIT_FAILURE);
 }
 
 typedef struct execargs_t execargs_t;
