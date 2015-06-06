@@ -1,65 +1,62 @@
-#include <unistd.h>
-#include <memory.h>
 #include <stdlib.h>
-#include "helpers.h"
+#include <string.h>
+#include <helpers.h>
 
-#define BUFFER_SIZE 4100 
+#define BUFFER_SIZE 4096
 
-int find_elem(char const * buffer, int count, char symbol)
-{
-    for (int i = 0; i != count; ++i)
-    {
-        if (buffer[i] == symbol)
-        {
+ssize_t delimiter_position(const void * buf, size_t size, char delimiter) {
+    for (size_t i = 0; i < size; ++i)
+        if (((char *) buf)[i] == delimiter)
             return i;
-        }
-    }
-    return count;
+    return -1;
 }
 
-void move(char * from, char * to, size_t count) 
-{
-    while (count-- && (*to++ = *from++));
-}
-
-int main(int argc, char ** argv) 
-{
-    char * new_argv[argc + 1];
-    for (int i = 0; i != argc - 1; ++i)
-    {
-        new_argv[i] = argv[i + 1];
-    }
-    
+int main(int argc, char * argv[]) {
     char buffer[BUFFER_SIZE];
-    char last_arg[BUFFER_SIZE];
-    int offset = 0;
-    for(ssize_t read_block = -1;read_block;)
-    {
-        read_block = read_until(STDIN_FILENO, buffer + offset, BUFFER_SIZE - offset, '\n');
-        if (read_block < 0)
-        {
+    char * args[argc + 1];
+    
+    for (int i = 1; i < argc; ++i)
+        args[i - 1] = argv[i];
+    args[argc] = NULL;
+
+    size_t offset = 0;
+    while (1) {
+        ssize_t line_length = read_until(STDIN_FILENO, buffer + offset, BUFFER_SIZE - offset, '\n');
+        if (line_length < 0)
             exit(EXIT_FAILURE);
+        ssize_t delimiter_pos = delimiter_position(buffer, line_length + offset, '\n');
+        if (line_length == 0 && delimiter_pos < 0)
+            break;
+        if (delimiter_pos < 0) {
+            offset += line_length;
+            continue;
         }
-        offset += read_block;
-        for (;offset > 1;)
-        {
-//            write_(STDOUT_FILENO, buffer, offset);
-            int ind = find_elem(buffer, offset, '\n');
-            move(buffer, last_arg, ind);
-            last_arg[ind] = 0;
-            new_argv[argc - 1] = last_arg;
-            new_argv[argc] = NULL;
-            if (!spawn(new_argv[0], new_argv)) 
-            {
-                if (write_(STDOUT_FILENO, buffer, ind + (ind != offset)) < 0)
-                {
-                    exit(EXIT_FAILURE);
-                }
-            }
-            move(buffer + ind + 1, buffer, offset - ind);
-            offset -= ind;
-            offset -= (ind == offset);
+        buffer[delimiter_pos] = 0;
+        args[argc - 1] = buffer;
+        int spawn_res = spawn(args[0], args);
+        if (spawn_res == 0) {
+            ssize_t write_block = write_(STDOUT_FILENO, buffer, delimiter_pos);
+            if (write_block < 0)
+                exit(EXIT_FAILURE);
+            write_(STDOUT_FILENO, "\n", 1);
+        }
+        memmove(buffer, buffer + delimiter_pos + 1, offset + line_length - delimiter_pos - 1);
+        offset += line_length - 1;
+        offset -= delimiter_pos;
+
+    }
+
+    if (offset > 0) {
+        buffer[offset] = 0;
+        args[argc - 1] = buffer;
+        int spawn_res = spawn(args[0], args);
+        if (spawn_res == 0) {
+            ssize_t write_block = write_(STDOUT_FILENO, buffer, offset);
+            if (write_block < 0)
+                exit(EXIT_FAILURE);
+            write_(STDOUT_FILENO, "\n", 1);
         }
     }
     exit(EXIT_SUCCESS);
 }
+
