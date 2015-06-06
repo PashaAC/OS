@@ -36,27 +36,17 @@ ssize_t write_(int fd, const void * buf, size_t count) {
     return offset;
 }
 
-ssize_t read_until(int fd, void * buf, size_t count, char delimiter) 
-{    
+ssize_t read_until(int fd, void * buf, size_t count, char delimiter) {    
     size_t offset = 0;
-    while (offset < count) 
-    {
+    while (offset < count) {
         ssize_t read_block = read(fd, buf + offset, count - offset);
-        if (read_block < 0) 
-        {
-            return read_block;
-        }
+        if (read_block == -1) 
+            return -1;
         if (read_block == 0) 
-        {
             break;
-        }
         for (size_t i = offset; i != offset + read_block; ++i)
-        {
             if (((char *)buf)[i] == delimiter)
-            {
                 return offset + read_block;
-            }
-        }
         offset += read_block;
     }
     return offset;
