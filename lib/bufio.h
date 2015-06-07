@@ -7,7 +7,7 @@
 struct buf_t {
     size_t size;
     size_t capacity;
-    char * buffer;
+    char * data;
     int finish;
 };
 
