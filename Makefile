@@ -5,6 +5,8 @@ all:
 	$(MAKE) -C filter/
 	$(MAKE) -C bufcat/
 	$(MAKE) -C foreach/
+	$(MAKE) -C simplesh/
+	
 clean: 
 	$(MAKE) clean -C lib/
 	$(MAKE) clean -C cat/
@@ -12,4 +14,5 @@ clean:
 	$(MAKE) clean -C filter/
 	$(MAKE) clean -C bufcat/
 	$(MAKE) clean -C foreach/
+	$(MAKE) clean -C simplesh/
 
