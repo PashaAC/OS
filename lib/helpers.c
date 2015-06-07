@@ -69,45 +69,30 @@ int spawn(const char * file, char * const argv[]) {
     exit(EXIT_FAILURE);
 }
 
-typedef struct execargs_t execargs_t;
-
-struct execargs_t* create_execargs(char * args[])
-{
-    struct execargs_t *ans = (struct execargs_t *) malloc(sizeof(struct execargs_t));
-
-    if (ans == NULL)
-    {
+struct execargs_t* create_execargs(char * args[]) {
+    struct execargs_t * program = (struct execargs_t *) malloc(sizeof(struct execargs_t));
+    if (program == NULL)
         exit(EXIT_FAILURE);
-    }
-
-    ans->prog_args = args;
-    ans->prog_name = args[0];
-
-    return ans;
+    program->args = args;
+    program->name = args[0];
+    return program;
 }
 
-int exec(struct execargs_t* args)
-{
-    return execvp(args->prog_name, args->prog_args);
+int exec(struct execargs_t * program) {
+    return execvp(program->name, program->args);
 }
 
-pid_t *pids;
-size_t n_pids;
+pid_t * cpids;
+size_t cpids_size;
 
-void kill_all()
-{
-    for (size_t i = 0; i < n_pids; ++i)
-    {
-        if (pids[i] != -1)
-        {
-            kill(pids[i], SIGTERM);
-        }
-    }
-    n_pids = 0;
+void kill_all() {
+    for (size_t i = 0; i < cpids_size; ++i)
+        if (cpids[i] != -1)
+            kill(cpids[i], SIGKILL);
+    cpids_size = 0;
 }
 
-void kill_handler(int code)
-{
+void kill_handler(int code) {
     code = 0;
     kill_all();
 }
@@ -138,112 +123,68 @@ void other_sig_init(struct sigaction *other_sig_action, sigset_t *other_sig_set)
 
 }
 
-int runpiped(struct execargs_t** programs, size_t n)
-{  
-    if (!n)
-    {
+int runpiped(struct execargs_t** programs, size_t n) {  
+    if (n == 0)
         return 0;
-    }
 
-    pids = (pid_t *) malloc (sizeof(pid_t) * n);
-    if (pids == NULL)
+    cpids = (pid_t *) malloc (sizeof(pid_t) * n);
+    if (cpids == NULL)
+        return 0;
+
+    cpids_size = 0;
+    for (size_t i = 0; i < n; ++i)
+        cpids[i] = -1;
+
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = kill_handler;
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGINT);
+    action.sa_mask = set;
+    sigaction(SIGINT, &action, 0);
+
+
+    int pipefd[n - 1][2];
+    for (size_t i = 0; i < n - 1; ++i)
+        if (pipe(pipefd[i]) == -1)
+            return 0;
+
+    for (size_t i = 0; i < n; ++i)
     {
-        return EXIT_FAILURE;
-    }
-    n_pids = 0;
-
-    for (int i = 0; i < n; ++i)
-    {
-        pids[i] = -1;
-    }
-
-    struct sigaction sig_action;
-    sigset_t sig_set;
-    sig_init(&sig_action, &sig_set);
-    sigaction(SIGINT, &sig_action, NULL);
-
-    int fds[n - 1][2];
-    for (int i = 0; i < n - 1; ++i)
-    {
-        if (pipe2(fds[i], O_CLOEXEC) == -1)
-        {
-            return EXIT_FAILURE;
-        }
-    }
-
-    for (int i = 0; i < n; ++i)
-    {
-        pid_t id = fork();
-
-        if (id < 0)
-        {
+        pid_t cpid = fork();
+        if (cpid < 0) {     // error
             kill_all();
-            for (int i = 0; i < n - 1; ++i)
-            {
-                if (close(fds[i][0]) == -1)
-                {
-                    return EXIT_FAILURE;
-                }
-                if (close(fds[i][1]) == -1)
-                {
-                    return EXIT_FAILURE;
-                }
-            }
-            return EXIT_FAILURE;
+            for (size_t j = 0; j < n - 1; ++j)
+                if (close(pipefd[j][0]) == -1 || close(pipefd[j][1]) == -1)
+                    return -1;
         }
 
-        if (id)
-        {
-
-            pids[n_pids] = id;
-            ++n_pids;
-        }
-        else
-        {
-            if (i > 0)
-            {
-                if (dup2(fds[i - 1][0], 0) == -1)
-                {
-                    exit(EXIT_FAILURE);
-                }
+        if (cpid == 0) {    // child
+            if (i != 0 && dup2(pipefd[i - 1][0], 0) == -1) 
+                return -1;
+            if (i != n - 1 && dup2(pipefd[i][1], 1) == -1)
+                return -1;
+            for (size_t j = 0; j < n - 1; ++j) {
+                if (j != i - 1 && close(pipefd[j][0]) == -1) 
+                    return -1;
+                if (j != i && close(pipefd[j][1]) == -1)
+                    return -1;
             }
-            if (i < n - 1)
-            {
-                if (dup2(fds[i][1], 1) == -1)
-                {
-                    exit(EXIT_FAILURE);
-                }
-            }
-            struct sigaction other_sig_action;
-            sigset_t other_sig_set;
-            other_sig_init(&other_sig_action, &other_sig_set);
-            sigaction(SIGPIPE, &other_sig_action, NULL);
             exec(programs[i]);
         }
-    }
 
-    for (int i = 0; i < n - 1; ++i)
-    {
-        if (close(fds[i][0]) == -1)
-        {
-            return EXIT_FAILURE;
-        }
-        if (close(fds[i][1]) == -1)
-        {
-            return EXIT_FAILURE;
+        if (cpid > 0) {     // parent
+            cpids[cpids_size++] = cpid;
         }
     }
 
+    for (size_t j = 0; j < n - 1; ++j)
+        if (close(pipefd[j][0]) == -1 || close(pipefd[j][1]) == -1)
+            return -1;
     
-    while (1)
-    {   
-        int return_status;
-        if ((wait(&return_status) < 0) && (errno == ECHILD))
-        {
-            break;
-        }
-    }
-
+    int status;
+    while (wait(&status) != -1 || errno != ECHILD);
     return 0;
 }
 
