@@ -5,8 +5,8 @@ struct buf_t * buf_new(size_t capacity) {
     struct buf_t * buf = (struct buf_t * ) malloc(sizeof(struct buf_t));
     if (buf == NULL)
         return NULL;
-    buf->buffer = (char *) malloc(sizeof(char) * capacity);
-    if (buf->buffer == NULL)
+    buf->data = (char *) malloc(sizeof(char) * capacity);
+    if (buf->data == NULL)
         return NULL;
     buf->capacity = capacity;
     buf->size = 0;
@@ -16,7 +16,7 @@ struct buf_t * buf_new(size_t capacity) {
 
 void buf_free(struct buf_t * buf) {
     if (buf != NULL) {
-        free(buf->buffer);
+        free(buf->data);
         free(buf);
     }
 }
@@ -53,7 +53,7 @@ ssize_t buf_fill(int fd, struct buf_t * buf, size_t required) {
     if (required > buf->capacity)
         return -1;
     while (buf->size < required) {
-        ssize_t read_block = read(fd, buf->buffer + buf->size, required - buf->size);
+        ssize_t read_block = read(fd, buf->data + buf->size, buf->capacity - buf->size);
         if (read_block == -1)
             return -1;
         if (read_block == 0) {
@@ -73,39 +73,34 @@ ssize_t buf_flush(int fd, struct buf_t * buf, size_t required) {
     size_t prev_size = buf->size;
     required = required < buf->size ? required : buf->size; // 100% <= buf->size
     while (required > 0) {
-        ssize_t write_block = write(fd, buf->buffer, required);
+        ssize_t write_block = write(fd, buf->data, buf->size);
         if (write_block == -1) 
             return -1;
-        memmove(buf->buffer, buf->buffer + write_block, buf->size - write_block);
+        memmove(buf->data, buf->data + write_block, buf->size - write_block);
         required -= write_block;
         buf->size -= write_block;
     }
     return prev_size - buf->size;
 }
 
-ssize_t buf_getline(int fd, struct buf_t * buf, char * dest)
-{
+ssize_t buf_getline(int fd, struct buf_t * buf, char * dest) {
 #ifdef DEBUG 
     if (buf == NULL) 
         abort();
 #endif
-    size_t str_len = 0;
-    for(;;)
-    {
-        for (size_t i = 0; i != buf->size; ++i)
-        {
-            if (buf->buffer[i] == '\n')
-            {
-                memmove(buf->buffer, buf->buffer + i + 1, buf->size - i - 1);
+    size_t dest_size = 0;
+    while (1) {
+        for (size_t i = 0; i < buf->size; ++i) {
+            if (buf->data[i] == '\n') {
+                dest[dest_size] = 0;
+                memmove(buf->data, buf->data + i + 1, buf->size - (i + 1));
                 buf->size -= i + 1;
-                return str_len;
+                return dest_size;
             }
-            dest[str_len++] = buf->buffer[i];
+            dest[dest_size++] = buf->data[i];
         }
-        if (buf_fill(fd, buf + buf->size, 1) <= 0)
-        {
+        if (buf_fill(fd, buf, buf->size + 1) < 1)
             return -1;
-        }
     }
     return -1;
 }
